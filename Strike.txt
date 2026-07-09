@@ -1,0 +1,159 @@
+writefile("OrbitalStrike.mp3", game:HttpGet("https://github.com/ian49972/smth/raw/refs/heads/main/OrbitalStrike.mp3"))
+writefile("Airstrike.rbxmx", game:HttpGet("https://github.com/ian49972/RBXMS/raw/refs/heads/main/Airstrike.rbxmx"))
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+if not player then player = Players.PlayerAdded:Wait() end
+
+local tool = Instance.new("Tool")
+tool.Name = "ST: Orbital Strike"
+tool.RequiresHandle = false
+tool.ToolTip = "From a skibidi toilet game!"
+tool.Parent = player:WaitForChild("Backpack")
+
+local modelContainer = game:GetObjects(getcustomasset("Airstrike.rbxmx"))[1]
+local decalPart = modelContainer:WaitForChild("CircleWarnVillanArc")
+local airstrikeModel = modelContainer:WaitForChild("AirStrike")
+local pillarPart = modelContainer:WaitForChild("Pillar")
+
+local originalOrientation = Vector3.new(180, 5.234000205993652, 90.0009994506836)
+
+local sound = Instance.new("Sound")
+sound.SoundId = getcustomasset("OrbitalStrike.mp3")
+sound.Volume = 1
+sound.Parent = workspace
+
+local function playSound()
+	for _, s in workspace:GetChildren() do
+		if s:IsA("Sound") and s.SoundId == sound.SoundId and s.IsPlaying then
+			s:Stop()
+			s:Destroy()
+		end
+	end
+	sound:Play()
+end
+
+local cameraShakeConnection = nil
+
+local function startCameraShake(maxIntensity, duration)
+	local cam = workspace.CurrentCamera
+	if not cam or cam.CameraType ~= Enum.CameraType.Custom then return end
+
+	if cameraShakeConnection then cameraShakeConnection:Disconnect() end
+
+	local startTime = tick()
+	local seed = math.random(10000, 99999)
+
+	cameraShakeConnection = RunService.RenderStepped:Connect(function()
+		local elapsed = tick() - startTime
+		if elapsed >= duration then
+			cameraShakeConnection:Disconnect()
+			cameraShakeConnection = nil
+			return
+		end
+
+		local progress = elapsed / duration
+		local intensity = maxIntensity * (1 - progress) ^ 1.6
+
+		local t = elapsed * 67 + seed
+
+		local shakeX = math.sin(t * 1.3) * 0.7 + math.cos(t * 2.1) * 0.3
+		local shakeY = math.sin(t * 1.8) * 0.5 + math.cos(t * 3.4) * 0.4
+		local shakeRoll = math.sin(t * 0.8) * 0.3
+
+		local offset = Vector3.new(shakeX, shakeY, 0) * intensity
+		local roll = shakeRoll * intensity * 25
+
+		cam.CFrame = cam.CFrame * CFrame.new(offset) * CFrame.Angles(0, 0, math.rad(roll))
+	end)
+end
+
+tool.Activated:Connect(function()
+	local character = tool.Parent
+	if not character or not character:IsA("Model") then return end
+
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return end
+
+	tool:Destroy()
+
+	modelContainer.Parent = workspace
+
+	local strikePos = rootPart.Position + Vector3.new(0, -2.8, 0)
+
+	decalPart.Position = strikePos
+	airstrikeModel:SetPrimaryPartCFrame(CFrame.new(0, -10000, 0))
+
+	for _, obj in airstrikeModel:GetDescendants() do
+		if obj:IsA("ParticleEmitter") or obj:IsA("Beam") then
+			obj.Enabled = false
+		end
+	end
+
+	for _, obj in pillarPart:GetDescendants() do
+		if obj:IsA("ParticleEmitter") then
+			obj.Enabled = false
+		end
+	end
+
+	playSound()
+
+	local spinSpeed = 30
+	local spinConnection = RunService.Heartbeat:Connect(function(dt)
+		decalPart.CFrame *= CFrame.Angles(0, math.rad(spinSpeed * dt), 0)
+	end)
+
+	task.spawn(function()
+		task.wait(7)
+		local targetPosition = decalPart.Position + Vector3.new(0, 750, 0)
+		airstrikeModel:SetPrimaryPartCFrame(CFrame.new(targetPosition) * CFrame.Angles(math.rad(originalOrientation.X), math.rad(originalOrientation.Y), math.rad(originalOrientation.Z)))
+
+		for _, obj in airstrikeModel:GetDescendants() do
+			if obj:IsA("ParticleEmitter") or obj:IsA("Beam") then
+				obj.Enabled = true
+			end
+		end
+
+		local strikeKeyframe = modelContainer:FindFirstChild("Strike")
+		if strikeKeyframe and strikeKeyframe:IsA("KeyframeSequence") then
+			local animatorModule = loadstring(game:HttpGet("https://raw.githubusercontent.com/ian49972/Animator/refs/heads/main/Main"))()
+			local animator = animatorModule.new(airstrikeModel)
+			local track = animator:LoadAnimation(strikeKeyframe)
+			track:Play()
+			track:AdjustSpeed(0.5)
+			task.wait(29)
+			track:AdjustSpeed(0.3)
+		end
+	end)
+
+	task.spawn(function()
+		task.wait(38)
+		pillarPart.Position = decalPart.Position
+		pillarPart.CanCollide = false
+		pillarPart.Anchored = true
+
+		for _, obj in pillarPart:GetDescendants() do
+			if obj:IsA("ParticleEmitter") then
+				obj.Enabled = true
+			end
+		end
+
+		startCameraShake(1.3, 23)
+
+		pillarPart.Touched:Connect(function(hit)
+			local humanoid = hit.Parent:FindFirstChildWhichIsA("Humanoid")
+			if humanoid then
+				humanoid.Health = 0
+			end
+		end)
+	end)
+
+	task.delay(61, function()
+		spinConnection:Disconnect()
+		if cameraShakeConnection then cameraShakeConnection:Disconnect() end
+		modelContainer:Destroy()
+		sound:Destroy()
+	end)
+end)
